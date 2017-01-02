@@ -16,8 +16,48 @@ buildscript {
 
 apply plugin: 'org.junit.platform.gradle.plugin'
 
+afterEvaluate {
+    TaskExecutionGraphListener taskExecutionGraphListener = new TaskExecutionGraphListener() {
+        @Override
+        void graphPopulated(TaskExecutionGraph taskExecutionGraph) {
+            project.junitPlatformTest.classpath = project.configurations.junitPlatform
+            if (taskExecutionGraph.hasTask(":test")) {
+                project.junitPlatformTest.classpath += project.sourceSets.test.runtimeClasspath
+            }
+            if (taskExecutionGraph.hasTask(":integrationTest")) {
+                project.junitPlatformTest.classpath += project.sourceSets.integrationTest.runtimeClasspath
+            }
+        }
+    }
+    gradle.taskGraph.addTaskExecutionGraphListener(taskExecutionGraphListener)
+}
+
+sourceSets {
+    integrationTest {
+        compileClasspath += sourceSets.main.runtimeClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+        java {
+            srcDirs 'integrationTest'
+        }
+    }
+}
+
 dependencies {
     compile 'org.slf4j:slf4j-api:1.7.21'
     testCompile 'org.junit.jupiter:junit-jupiter-api:5.0.0-M3'
-    testRuntime("org.junit.jupiter:junit-jupiter-engine:5.0.0-M3")
+    testRuntime 'org.junit.jupiter:junit-jupiter-engine:5.0.0-M3'
+    integrationTestCompile 'org.junit.jupiter:junit-jupiter-api:5.0.0-M3'
+    integrationTestRuntime 'org.junit.jupiter:junit-jupiter-engine:5.0.0-M3'
 }
+
+task integrationTest(type: Test) {
+    dependsOn 'classes'
+    dependsOn 'junitPlatformTest'
+    description = "Runs the integration tests."
+    group = "Verification"
+    testClassesDir = sourceSets.integrationTest.output.classesDir
+    classpath = sourceSets.integrationTest.runtimeClasspath
+}
+
+check.dependsOn 'integrationTest'
+
